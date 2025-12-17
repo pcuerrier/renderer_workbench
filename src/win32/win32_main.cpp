@@ -43,7 +43,7 @@ internal LRESULT CALLBACK Win32_WindowProc(HWND window, UINT message, WPARAM wPa
             i32 width = client_rect.right - client_rect.left;
             i32 height = client_rect.bottom - client_rect.top;
             Win32_ResizeDIBSection(width, height);*/
-            Win32_ResizeDIBSection(GAME_RES_WIDTH, GAME_RES_HEIGHT);
+            Win32_ResizeDIBSection(APP_RES_WIDTH, APP_RES_HEIGHT);
         } break;
 
         default:
@@ -278,7 +278,7 @@ internal void Win32_ResizeDIBSection(i32 width, i32 height)
         VirtualFree(framebuffer.memory, 0, MEM_RELEASE);
     }
 
-    framebuffer.bytes_per_pixel = GAME_BPP / 8;
+    framebuffer.bytes_per_pixel = APP_BPP / 8;
     framebuffer.width = width;
     framebuffer.height = height;
     framebuffer.pitch = width * framebuffer.bytes_per_pixel;
@@ -288,7 +288,7 @@ internal void Win32_ResizeDIBSection(i32 width, i32 height)
     g_framebuffer.bitmap_info.bmiHeader.biWidth = framebuffer.width;
     g_framebuffer.bitmap_info.bmiHeader.biHeight = -framebuffer.height; // TOP-down
     g_framebuffer.bitmap_info.bmiHeader.biPlanes = 1;
-    g_framebuffer.bitmap_info.bmiHeader.biBitCount = GAME_BPP;
+    g_framebuffer.bitmap_info.bmiHeader.biBitCount = APP_BPP;
     g_framebuffer.bitmap_info.bmiHeader.biCompression = BI_RGB;
 
     size_t memorySize = (size_t)(framebuffer.bytes_per_pixel * framebuffer.width * framebuffer.height);
@@ -324,8 +324,8 @@ HWND Win32_CreateMainGameWindow(_In_ HINSTANCE instance)
         (DWORD)g_window_style,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        GAME_RES_WIDTH * 2,
-        GAME_RES_HEIGHT * 2,
+        APP_RES_WIDTH * 2,
+        APP_RES_HEIGHT * 2,
         0,
         0,
         instance,
@@ -388,8 +388,8 @@ internal void Win32_ProcessPendingMessages(HWND window, Input& input)
                 GetClientRect(window, &clientRect);
                 i32 width = clientRect.right - clientRect.left;
                 i32 height = clientRect.bottom - clientRect.top;
-                mouse.x_pos = (i32)((((f32)mouse.x_pos / (f32)width) * (f32)GAME_RES_WIDTH));
-                mouse.y_pos = (i32)((((f32)mouse.y_pos / (f32)height) * (f32)GAME_RES_HEIGHT));
+                mouse.x_pos = (i32)((((f32)mouse.x_pos / (f32)width) * (f32)APP_RES_WIDTH));
+                mouse.y_pos = (i32)((((f32)mouse.y_pos / (f32)height) * (f32)APP_RES_HEIGHT));
             } break;
 
             case WM_LBUTTONDOWN:
