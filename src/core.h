@@ -2,6 +2,7 @@
 
 #pragma warning(disable : 4100) // unreferenced formal parameter
 #pragma warning(disable : 4189) // local variable is initialized but not referenced
+#pragma warning(disable : 4191) // unsafe cast
 #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #pragma warning(disable : 4505) // unreferenced local function has been removed
 #pragma warning(disable : 4514) // 'function' : unreferenced inline function has been removed
@@ -10,10 +11,10 @@
 
 #include <cstdint>
 
-#define GAME_RES_WIDTH	800
-#define GAME_RES_HEIGHT	450
-#define GAME_BPP		32
-#define GAME_DRAWING_AREA_MEMORY_SIZE	(GAME_RES_WIDTH * GAME_RES_HEIGHT * (GAME_BPP / 8))
+#define APP_RES_WIDTH	800
+#define APP_RES_HEIGHT	600
+#define APP_BPP		32
+#define APP_DRAWING_AREA_MEMORY_SIZE	(APP_RES_WIDTH * APP_RES_HEIGHT * (APP_BPP / 8))
 
 #define CALCULATE_PERF_TIME_EVERY_X_FRAMES	120
 #define TARGET_MICROSECONDS_PER_FRAME		16667ULL

@@ -3,6 +3,9 @@
 
 #include "utils/handmade_math.h"
 
+#include "renderer/renderer.h"
+#include "app/app.h"
+
 #define APP_NAME "handmade-renderer"
 #define LAPP_NAME L"handmade-renderer"
 
@@ -38,12 +41,12 @@ internal LRESULT CALLBACK Win32_WindowProc(HWND window, UINT message, WPARAM wPa
 
         case WM_SIZE:
         {
-            /*RECT client_rect;
+            RECT client_rect;
             GetClientRect(window, &client_rect);
             i32 width = client_rect.right - client_rect.left;
             i32 height = client_rect.bottom - client_rect.top;
-            Win32_ResizeDIBSection(width, height);*/
-            Win32_ResizeDIBSection(GAME_RES_WIDTH, GAME_RES_HEIGHT);
+            //Win32_ResizeDIBSection(APP_RES_WIDTH, APP_RES_HEIGHT);
+            Renderer_Resize(width, height);
         } break;
 
         default:
@@ -128,7 +131,6 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
     GetSystemInfo(&g_perf_data.system_info);
     GetSystemTimeAsFileTime((FILETIME*)&g_perf_data.previous_system_time);
 
-
     if (app_memory.permanent_storage && app_memory.transient_storage)
     {
         i64 elapsed_micro_seconds_accumulator = 0;
@@ -140,6 +142,10 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
         LARGE_INTEGER frame_start = Win32_GetWallClock();
         u64 cycle_count_start = __rdtsc();
 
+        Renderer_Init(window); // Initialize OpenGL context
+
+        ShowWindow(window, SW_SHOW);
+
         while (g_running)
         {
             old_input = new_input;
@@ -147,8 +153,19 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
             Win32_ProcessPendingMessages(window, new_input);
 
             //GameUpdateAndRender(app_memory, g_framebuffer.buffer, new_input, old_input, asset_store, TARGET_SECONDS_PER_FRAME);
+            RenderQueue render_queue = AppUpdate(); // Fill Render
 
-            Win32_BlitDIBSection(window);
+            // Renderer code
+            Renderer_ClearScreen(0.2f, 0.3f, 0.3f, 1.0f);
+            for (size_t i = 0; i < render_queue.command_count; ++i)
+            {
+                Renderer_Draw(&render_queue.commands[i]);
+            }
+
+            Renderer_Present();
+            SwapBuffers(GetDC(window));
+
+            //Win32_BlitDIBSection(window);
             ++g_perf_data.total_frame_rendered;
 
             LARGE_INTEGER frame_end = Win32_GetWallClock();
@@ -278,7 +295,7 @@ internal void Win32_ResizeDIBSection(i32 width, i32 height)
         VirtualFree(framebuffer.memory, 0, MEM_RELEASE);
     }
 
-    framebuffer.bytes_per_pixel = GAME_BPP / 8;
+    framebuffer.bytes_per_pixel = APP_BPP / 8;
     framebuffer.width = width;
     framebuffer.height = height;
     framebuffer.pitch = width * framebuffer.bytes_per_pixel;
@@ -288,14 +305,14 @@ internal void Win32_ResizeDIBSection(i32 width, i32 height)
     g_framebuffer.bitmap_info.bmiHeader.biWidth = framebuffer.width;
     g_framebuffer.bitmap_info.bmiHeader.biHeight = -framebuffer.height; // TOP-down
     g_framebuffer.bitmap_info.bmiHeader.biPlanes = 1;
-    g_framebuffer.bitmap_info.bmiHeader.biBitCount = GAME_BPP;
+    g_framebuffer.bitmap_info.bmiHeader.biBitCount = APP_BPP;
     g_framebuffer.bitmap_info.bmiHeader.biCompression = BI_RGB;
 
     size_t memorySize = (size_t)(framebuffer.bytes_per_pixel * framebuffer.width * framebuffer.height);
     framebuffer.memory = VirtualAlloc(0, memorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 }
 
-HWND Win32_CreateMainGameWindow(_In_ HINSTANCE instance)
+HWND Win32_CreateMainGameWindow(HINSTANCE instance)
 {
     WNDCLASSEXW windowClass = {};
     windowClass.cbSize = sizeof(WNDCLASSEXW);
@@ -315,7 +332,7 @@ HWND Win32_CreateMainGameWindow(_In_ HINSTANCE instance)
         return NULL;
     }
 
-    g_window_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    g_window_style = WS_OVERLAPPEDWINDOW;
 
     // TODO: Remove DWORD cast
     HWND window = CreateWindowW(
@@ -324,8 +341,8 @@ HWND Win32_CreateMainGameWindow(_In_ HINSTANCE instance)
         (DWORD)g_window_style,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        GAME_RES_WIDTH * 2,
-        GAME_RES_HEIGHT * 2,
+        APP_RES_WIDTH,
+        APP_RES_HEIGHT,
         0,
         0,
         instance,
@@ -388,8 +405,8 @@ internal void Win32_ProcessPendingMessages(HWND window, Input& input)
                 GetClientRect(window, &clientRect);
                 i32 width = clientRect.right - clientRect.left;
                 i32 height = clientRect.bottom - clientRect.top;
-                mouse.x_pos = (i32)((((f32)mouse.x_pos / (f32)width) * (f32)GAME_RES_WIDTH));
-                mouse.y_pos = (i32)((((f32)mouse.y_pos / (f32)height) * (f32)GAME_RES_HEIGHT));
+                mouse.x_pos = (i32)((((f32)mouse.x_pos / (f32)width) * (f32)APP_RES_WIDTH));
+                mouse.y_pos = (i32)((((f32)mouse.y_pos / (f32)height) * (f32)APP_RES_HEIGHT));
             } break;
 
             case WM_LBUTTONDOWN:
@@ -492,3 +509,5 @@ internal void Win32_ProcessPendingMessages(HWND window, Input& input)
 }
 
 #include "win32/win32_input.cpp"
+#include "win32/win32_opengl.cpp"
+#include "app/app.cpp"
