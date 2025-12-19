@@ -9,7 +9,7 @@ struct MeshHandle { u32 id; };
 struct RenderCommand {
     MeshHandle mesh;
     TextureHandle texture;
-    f32 transform_matrix[16];
+    glm::mat4 transform_matrix;
 };
 
 struct RenderQueue {

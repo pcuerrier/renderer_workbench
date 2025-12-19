@@ -11,6 +11,12 @@
 
 #include <cstdint>
 
+#pragma warning(push, 0)
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#pragma warning(pop)
+
 #define APP_RES_WIDTH	800
 #define APP_RES_HEIGHT	600
 #define APP_BPP		32
@@ -37,7 +43,7 @@ constexpr float TARGET_SECONDS_PER_FRAME = (TARGET_MICROSECONDS_PER_FRAME / 1000
 #define f32 float
 #define f64 double
 
-#define FLT_MAX 3.40282e+38f
+//#define FLT_MAX 3.40282e+38f
 
 #if DEBUG
 #define Assert(expression) if(!(expression)) {*(volatile i32 *)0 = 0;}

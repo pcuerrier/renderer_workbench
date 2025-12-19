@@ -5,52 +5,52 @@
 #pragma warning(disable : 4577) // 'noexcept' used with no exception handling mode specified; termination on exception is not guaranteed. Specify /EHsc
 #include <cmath>
 
-inline i32 RoundFloatToInt(f32 number)
+inline int RoundFloatToInt(float number)
 {
-    i32 result = (i32)(number + 0.5f);
+    int result = (int)(number + 0.5f);
     return result;
 }
 
-inline u32 RoundFloatToUInt(f32 number)
+inline unsigned int RoundFloatToUInt(float number)
 {
-    u32 result = (u32)(number + 0.5f);
+    unsigned int result = (unsigned int)(number + 0.5f);
     return result;
 }
 
-inline i32 TruncateFloatToInt(f32 number)
+inline int TruncateFloatToInt(float number)
 {
-    i32 result = (i32)number;
+    int result = (int)number;
     return result;
 }
 
-inline i32 FloorFloatToInt(f32 number)
+inline int FloorFloatToInt(float number)
 {
-    i32 result = (i32)std::floor(number);
+    int result = (int)std::floor(number);
     return result;
 }
 
-inline i32 CeilFloatToInt(f32 number)
+inline int CeilFloatToInt(float number)
 {
-    i32 result = (i32)std::ceil(number);
+    int result = (int)std::ceil(number);
     return result;
 }
 
-inline f32 MinFloat(f32 a, f32 b)
+inline float MinFloat(float a, float b)
 {
     return (a < b) ? a : b;
 }
 
-inline f32 MaxFloat(f32 a, f32 b)
+inline float MaxFloat(float a, float b)
 {
     return (a > b) ? a : b;
 }
 
-inline i32 MinInt(i32 a, i32 b)
+inline int MinInt(int a, int b)
 {
     return (a < b) ? a : b;
 }
 
-inline i32 MaxInt(i32 a, i32 b)
+inline int MaxInt(int a, int b)
 {
     return (a > b) ? a : b;
 }

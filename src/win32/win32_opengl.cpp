@@ -25,6 +25,8 @@ global HMODULE g_opengl32_module;
 
 global GLuint g_shader_program;
 
+global GLint g_transformLoc;
+
 //MeshHandle Renderer_CreateMesh(f32* vertices, int v_count, int* indices, int i_count) {
 //    // ... extensive OpenGL setup code (glGenBuffers, glBindBuffer, etc.) ...
 //    
@@ -38,9 +40,12 @@ const char* vertex_shader_source = R"(
     // 'layout(location = 0)' matches the index we will use in glVertexAttribPointer later
     layout (location = 0) in vec3 aPos;
 
+    // "Uniforms" are global variables we set from the CPU
+    uniform mat4 transform;
+
     void main() {
         // gl_Position is a built-in output variable required by OpenGL
-        gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
+        gl_Position = transform * vec4(aPos, 1.0);
     }
 )";
 
@@ -206,6 +211,7 @@ internal bool Renderer_Init(void* window_handle)
     }
 
     g_shader_program = CreateShaderProgram(vertex_shader_source, fragment_shader_source);
+    g_transformLoc = glGetUniformLocation(g_shader_program, "transform");
 
     return true;
 }
@@ -264,8 +270,16 @@ internal MeshHandle Renderer_CreateMesh(f32* vertices, int v_count, int* indices
 internal void Renderer_Draw(RenderCommand* cmd)
 {
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
-    GLMesh mesh = g_mesh_storage[cmd->mesh.id];
+    auto id = cmd->mesh.id;
+    // TODO: Weird bug on laptop where id is some large value
+    if (id > 1024)
+    {
+        id = 0;
+    }
+    GLMesh mesh = g_mesh_storage[id];
     glUseProgram(g_shader_program);
+    glm::mat4 transform = glm::mat4(1.0f);
+    glUniformMatrix4fv(g_transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
     glBindVertexArray(mesh.vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
     glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, 0);
