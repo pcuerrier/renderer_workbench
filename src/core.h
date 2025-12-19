@@ -249,13 +249,3 @@ struct Input
     Keyboard keyboard;
     Mouse mouse;
 };
-
-struct Memory
-{
-    u64 permanent_storageSize;
-    u64 transient_storageSize;
-    void* permanent_storage;
-    void* transient_storage;
-
-    bool initialized = false;
-};
