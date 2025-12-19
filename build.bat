@@ -1,7 +1,7 @@
 @echo off
 
 set INCLUDES=-I..\src\ -I..\include\
-set CommonCompilerFlags=-diagnostics:column -WL -Od -nologo -fp:fast -fp:except- -Gm- -GR- -EHsc- -Zo -Oi -WX -Wall -FC -Z7 -GS- -Gs9999999
+set CommonCompilerFlags=-diagnostics:column -std:c++20 -WL -Od -nologo -fp:fast -fp:except- -Gm- -GR- -EHsc- -Zo -Oi -WX -Wall -FC -Z7 -GS- -Gs9999999
 set CommonCompilerFlags=-DDEBUG %CommonCompilerFlags% %INCLUDES%
 set CommonLinkerFlags=-STACK:0x100000,0x100000 -incremental:no -opt:ref user32.lib gdi32.lib winmm.lib kernel32.lib opengl32.lib
 

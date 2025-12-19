@@ -40,14 +40,14 @@ RenderQueue AppUpdate()
         is_initialized = true;
 
         Vertex vertices[] = {
-            { 0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            { 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            {-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            {-0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            { 0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            { 0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            {-0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-            {-0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f}
+            { .position = { 0.5f,  0.5f, -0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = { 0.5f, -0.5f, -0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = {-0.5f, -0.5f, -0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = {-0.5f,  0.5f, -0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = { 0.5f,  0.5f,  0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = { 0.5f, -0.5f,  0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = {-0.5f, -0.5f,  0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = {-0.5f,  0.5f,  0.5f }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 0.0f } }
         };
         int indices[] = {  // note that we start from 0!
             0, 1, 3,
@@ -79,7 +79,7 @@ RenderQueue AppUpdate()
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
     command.transform_matrix = projection * view * model;
 
-    render_queue.commands = &command;
+    render_queue.commands[0] = command;
     render_queue.command_count = 1;
     return render_queue;
 }

@@ -19,7 +19,8 @@ struct RenderCommand {
 };
 
 struct RenderQueue {
-    RenderCommand* commands;
+    // TODO: return to RenderCommand* once we use arenas
+    RenderCommand commands[5];
     i64 command_count;
     i64 capacity;
 };
