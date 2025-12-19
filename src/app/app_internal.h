@@ -8,6 +8,6 @@ struct Entity {
     //vec3 position;
     //vec3 rotation;
     MeshHandle mesh_id;
-    TextureHandle texture_id;
+    //TextureHandle texture_id;
     bool is_visible;
 };

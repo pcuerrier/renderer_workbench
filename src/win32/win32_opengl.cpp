@@ -9,6 +9,8 @@
 #include "glad/wgl.c"
 #pragma warning(pop)
 
+#include <vector>
+
 // We map our generic MeshHandle to actual OpenGL Vertex Array Objects (VAOs)
 struct GLMesh {
     GLuint vao;
@@ -19,45 +21,10 @@ struct GLMesh {
 
 // Global state or a static array to manage resources
 // (In a real engine, you'd have a robust resource manager)
-global GLMesh g_mesh_storage[1024];
+global std::vector<GLMesh> g_meshes;
+global std::vector<GLuint> g_shaders;
 
 global HMODULE g_opengl32_module;
-
-global GLuint g_shader_program;
-
-global GLint g_transformLoc;
-
-//MeshHandle Renderer_CreateMesh(f32* vertices, int v_count, int* indices, int i_count) {
-//    // ... extensive OpenGL setup code (glGenBuffers, glBindBuffer, etc.) ...
-//    
-//    // Return a handle that acts as an ID for this specific mesh
-//    MeshHandle handle = { .id = next_free_slot++ };
-//    return handle;
-//}
-
-const char* vertex_shader_source = R"(
-    #version 330 core
-    // 'layout(location = 0)' matches the index we will use in glVertexAttribPointer later
-    layout (location = 0) in vec3 aPos;
-
-    // "Uniforms" are global variables we set from the CPU
-    uniform mat4 transform;
-
-    void main() {
-        // gl_Position is a built-in output variable required by OpenGL
-        gl_Position = transform * vec4(aPos, 1.0);
-    }
-)";
-
-const char* fragment_shader_source = R"(
-    #version 330 core
-    out vec4 FragColor; // We define our own output variable
-
-    void main() {
-        // RGBA (Red, Green, Blue, Alpha)
-        FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-    }
-)";
 
 internal GLADloadfunc GetProcAddressWGL(const char* procname)
 {
@@ -66,51 +33,6 @@ internal GLADloadfunc GetProcAddressWGL(const char* procname)
         return proc;
 
     return (GLADloadfunc) GetProcAddress(g_opengl32_module, procname);
-}
-
-GLuint CreateShaderProgram(const char* vertex_source, const char* fragment_source) {
-    // 1. Compile Vertex Shader
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_source, NULL);
-    glCompileShader(vertex_shader);
-    
-    int  success;
-    char infoLog[512];
-    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
-    if(!success)
-    {
-        glGetShaderInfoLog(vertex_shader, 512, NULL, infoLog);
-        printf("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n%s\n", infoLog);
-    }
-
-    // 2. Compile Fragment Shader
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_source, NULL);
-    glCompileShader(fragment_shader);
-    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-    if(!success)
-    {
-        glGetShaderInfoLog(fragment_shader, 512, NULL, infoLog);
-        printf("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n%s\n", infoLog);
-    }
-
-    // 3. Link them into a "Program"
-    GLuint shader_program = glCreateProgram();
-    glAttachShader(shader_program, vertex_shader);
-    glAttachShader(shader_program, fragment_shader);
-    glLinkProgram(shader_program);
-    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-    if(!success)
-    {
-        glGetProgramInfoLog(shader_program, 512, NULL, infoLog);
-        printf("ERROR::SHADER::PROGRAM::LINKING_FAILED\n%s\n", infoLog);
-    }
-
-    // 4. Cleanup (We don't need the individual objects once linked)
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-
-    return shader_program;
 }
 
 internal bool Init_OpenGL(void* window_handle)
@@ -196,9 +118,8 @@ internal bool Init_OpenGL(void* window_handle)
     }
 
     printf("OpenGL Initialized: Version %s\n", glGetString(GL_VERSION));
-    //char debug_text_buffer[256] = {};
-    //sprintf_s(debug_text_buffer, sizeof(debug_text_buffer), "OpenGL Version: %s\n", glGetString(GL_VERSION));
-    //OutputDebugStringA(debug_text_buffer);
+    
+    glEnable(GL_DEPTH_TEST);
     return true;
 }
 
@@ -210,9 +131,6 @@ internal bool Renderer_Init(void* window_handle)
         return false;
     }
 
-    g_shader_program = CreateShaderProgram(vertex_shader_source, fragment_shader_source);
-    g_transformLoc = glGetUniformLocation(g_shader_program, "transform");
-
     return true;
 }
 
@@ -221,71 +139,125 @@ internal void Renderer_Resize(i32 width, i32 height)
     glViewport(0, 0, width, height);
 }
 
-internal void Renderer_ClearScreen(f32 r, f32 g, f32 b, f32 a)
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(r, g, b, a);
-}
-
-internal MeshHandle Renderer_CreateMesh(f32* vertices, int v_count, int* indices, int i_count)
-{
-    GLuint VBO, VAO, EBO;
-    // Generate the VAO first
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO); // "Start recording configuration..."
-
-    // Generate the VBO and fill it with data
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, v_count, vertices, GL_STATIC_DRAW);
-
-    // --- 3. Define the Layout (The Recipe) ---
-    // "Attribute 0 is 3 floats, tightly packed, starting at offset 0"
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, i_count, indices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glDrawElements(GL_TRIANGLES, i_count, GL_UNSIGNED_INT, 0);
-
-    // Unbind VBO/VAO to be safe (optional but good practice)
-    glBindBuffer(GL_ARRAY_BUFFER, 0); 
-    glBindVertexArray(0);
-
-    GLMesh mesh = {};
-    mesh.vao = VAO;
-    mesh.vbo = VBO;
-    mesh.ebo = EBO;
-    mesh.index_count = i_count;
-    g_mesh_storage[0] = mesh;
-
-    MeshHandle handle = {};
-    handle.id = 0;
-    return handle;
-}
-
-internal void Renderer_Draw(RenderCommand* cmd)
-{
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
-    auto id = cmd->mesh.id;
-    // TODO: Weird bug on laptop where id is some large value
-    if (id > 1024)
-    {
-        id = 0;
-    }
-    GLMesh mesh = g_mesh_storage[id];
-    glUseProgram(g_shader_program);
-    glm::mat4 transform = glm::mat4(1.0f);
-    glUniformMatrix4fv(g_transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
-    glBindVertexArray(mesh.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-    glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, 0);
-}
-
 internal void Renderer_Present()
 {
     glFlush();
 }
+
+internal void Renderer_ClearScreen(f32 r, f32 g, f32 b, f32 a)
+{
+    glClearColor(r, g, b, a);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+internal MeshHandle Renderer_CreateMesh(const Vertex* vertices, int v_count, int* indices, int i_count)
+{
+    GLMesh mesh = {};
+
+    // Generate the VAO first
+    glGenVertexArrays(1, &mesh.vao);
+    glBindVertexArray(mesh.vao); // "Start recording configuration..."
+
+    // Generate the VBO and fill it with data
+    glGenBuffers(1, &mesh.vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+    glBufferData(GL_ARRAY_BUFFER, v_count * static_cast<int>(sizeof(Vertex)), vertices, GL_STATIC_DRAW);
+
+    glGenBuffers(1, &mesh.ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, i_count * static_cast<int>(sizeof(int)), indices, GL_STATIC_DRAW);
+    // Layout matches struct Vertex:
+    // 0: Position (3 floats)
+    // 1: Color (3 floats)
+    // 2: UV (2 floats)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+    glEnableVertexAttribArray(0);
+    
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind VBO (the VAO "remembers" it)
+    glBindVertexArray(0);
+
+    mesh.index_count = i_count;
+    g_meshes.push_back(mesh);
+
+    MeshHandle handle = {};
+    handle.id = g_meshes.size() - 1;
+    return handle;
+}
+
+internal ShaderHandle Renderer_CreateShader(const char* vertex_source, const char* fragment_source) {
+    // 1. Compile Vertex Shader
+    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex_shader, 1, &vertex_source, NULL);
+    glCompileShader(vertex_shader);
+    
+    int  success;
+    char infoLog[512];
+    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+    if(!success)
+    {
+        glGetShaderInfoLog(vertex_shader, 512, NULL, infoLog);
+        printf("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n%s\n", infoLog);
+    }
+
+    // 2. Compile Fragment Shader
+    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragment_shader, 1, &fragment_source, NULL);
+    glCompileShader(fragment_shader);
+    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+    if(!success)
+    {
+        glGetShaderInfoLog(fragment_shader, 512, NULL, infoLog);
+        printf("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n%s\n", infoLog);
+    }
+
+    // 3. Link them into a "Program"
+    GLuint shader_program = glCreateProgram();
+    glAttachShader(shader_program, vertex_shader);
+    glAttachShader(shader_program, fragment_shader);
+    glLinkProgram(shader_program);
+    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
+    if(!success)
+    {
+        glGetProgramInfoLog(shader_program, 512, NULL, infoLog);
+        printf("ERROR::SHADER::PROGRAM::LINKING_FAILED\n%s\n", infoLog);
+    }
+
+    // 4. Cleanup (We don't need the individual objects once linked)
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
+
+    g_shaders.push_back(shader_program);
+
+    ShaderHandle handle = {};
+    handle.id = g_shaders.size() - 1;
+    return handle;
+}
+
+
+internal void Renderer_Draw(RenderCommand* cmd)
+{
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
+    if (cmd->mesh.id >= g_meshes.size()) return;
+    if (cmd->shader.id >= g_shaders.size()) return;
+
+    GLMesh& mesh = g_meshes[cmd->mesh.id];
+    GLuint shader = g_shaders[cmd->shader.id];
+
+    // 2. Setup State
+    glUseProgram(shader);
+
+    // 3. Upload Uniforms
+    GLint loc = glGetUniformLocation(shader, "transform");
+    glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(cmd->transform_matrix));
+
+    // 4. Draw
+    glBindVertexArray(mesh.vao);
+    glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, 0);
+}
+

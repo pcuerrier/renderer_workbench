@@ -3,12 +3,18 @@
 #include "core.h"
 
 // Handle types: Just integers or pointers, hiding the real GLuint IDs
-struct TextureHandle { u32 id; };
+struct ShaderHandle { u32 id; };
 struct MeshHandle { u32 id; };
+
+struct Vertex {
+    float position[3];
+    float color[3]; // We'll use this for debug colors for now
+    float uv[2];    // Texture coordinates (future use)
+};
 
 struct RenderCommand {
     MeshHandle mesh;
-    TextureHandle texture;
+    ShaderHandle shader;
     glm::mat4 transform_matrix;
 };
 
@@ -19,9 +25,15 @@ struct RenderQueue {
 };
 
 // The Interface - Functions implemented by the backend
+// System related functions
 internal bool Renderer_Init(void* window_handle);
 internal void Renderer_Resize(i32 width, i32 height);
 internal void Renderer_ClearScreen(f32 r, f32 g, f32 b, f32 a);
-internal MeshHandle Renderer_CreateMesh(f32* vertices, int v_count, int* indices, int i_count);
-internal void Renderer_Draw(RenderCommand* cmd);
 internal void Renderer_Present();
+
+// Resource creation functions
+internal MeshHandle Renderer_CreateMesh(const Vertex* vertices, int v_count, int* indices, int i_count);
+internal ShaderHandle Renderer_CreateShader(const char* vertex_source, const char* fragment_source);
+
+// Rendering functions
+internal void Renderer_Draw(RenderCommand* cmd);
