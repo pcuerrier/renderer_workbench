@@ -3,6 +3,8 @@
 
 #include "utils/handmade_math.h"
 
+#include "core/memory.h"
+
 #include "renderer/renderer.h"
 #include "app/app.h"
 
