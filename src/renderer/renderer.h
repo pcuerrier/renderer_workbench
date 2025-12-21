@@ -8,6 +8,7 @@ struct MeshHandle { u32 id; };
 
 struct Vertex {
     float position[3];
+    float normal[3];
     float color[3]; // We'll use this for debug colors for now
     float uv[2];    // Texture coordinates (future use)
 };
@@ -15,12 +16,13 @@ struct Vertex {
 struct RenderCommand {
     MeshHandle mesh;
     ShaderHandle shader;
-    glm::mat4 transform_matrix;
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 projection;
 };
 
 struct RenderQueue {
-    // TODO: return to RenderCommand* once we use arenas
-    RenderCommand commands[5];
+    RenderCommand* commands;
     i64 command_count;
     i64 capacity;
 };

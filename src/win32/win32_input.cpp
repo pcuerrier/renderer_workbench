@@ -28,12 +28,12 @@ internal void Win32LoadXInput()
 /***********************************************************************************************************************
 ** Win32ProcessKeyboardMessage
 ***********************************************************************************************************************/
-/*internal void Win32ProcessKeyboardMessage(Keyboard& new_state, u32 vk_code, i32 isDown)
+/*internal void Win32ProcessKeyboardMessage(Keyboard& new_state, u32 vk_code, i32 is_down)
 {
     ButtonState& button = Win32GetKeyFromVkCode(new_state, vk_code);
-    if (button.isDown != isDown)
+    if (button.is_down != is_down)
     {
-        button.isDown = isDown;
+        button.is_down = is_down;
         ++button.transitionCount;
     }
 }*/
@@ -41,12 +41,12 @@ internal void Win32LoadXInput()
 /***********************************************************************************************************************
 ** Win32ProcessMouseMessage
 ***********************************************************************************************************************/
-internal void Win32ProcessMouseMessage(Mouse& new_state, u32 mkCode, i32 isDown)
+internal void Win32ProcessMouseMessage(Mouse& new_state, u32 mkCode, i32 is_down)
 {
     ButtonState& button = Win32GetMouseKeyFromVkCode(new_state, mkCode);
-    if (button.isDown != (bool)isDown)
+    if (button.is_down != (bool)is_down)
     {
-        button.isDown = (bool)isDown;
+        button.is_down = (bool)is_down;
     }
 }
 
@@ -58,8 +58,8 @@ internal void Win32ProcessMouseMessage(Mouse& new_state, u32 mkCode, i32 isDown)
                                               ButtonState* oldState,
                                               ButtonState* new_state)
 {
-    new_state->isDown = ((xInputButtonState & buttonBit) == buttonBit) ? 1 : 0;
-    new_state->transitionCount = (oldState->isDown != new_state->isDown) ? 1 : 0;
+    new_state->is_down = ((xInputButtonState & buttonBit) == buttonBit) ? 1 : 0;
+    new_state->transitionCount = (oldState->is_down != new_state->is_down) ? 1 : 0;
 }*/
 
 /***********************************************************************************************************************

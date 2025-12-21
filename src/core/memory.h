@@ -16,8 +16,7 @@ struct MemoryArena
 struct Memory
 {
     MemoryArena permanent_storage;
-    MemoryArena transient_storage;
-    MemoryArena mesh_storage;
+    MemoryArena render_storage;
     bool initialized = false;
 };
 

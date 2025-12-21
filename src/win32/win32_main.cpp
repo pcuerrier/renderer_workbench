@@ -122,18 +122,23 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
 #endif
 
     Memory app_memory = {};
-    app_memory.permanent_storageSize = Megabytes(64);
-    app_memory.transient_storageSize = Gigabytes(4);
+    app_memory.permanent_storage.size = Megabytes(64);
+    app_memory.render_storage.size = Megabytes(4);
 
-    size_t totalSize = (size_t)(app_memory.permanent_storageSize + app_memory.transient_storageSize);
-    app_memory.permanent_storage = VirtualAlloc(base_address, totalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-    app_memory.transient_storage = (u8*)app_memory.permanent_storage + app_memory.permanent_storageSize;
+    size_t totalSize = (size_t)(app_memory.permanent_storage.size + app_memory.render_storage.size);
+    app_memory.permanent_storage.base = VirtualAlloc(base_address, totalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    app_memory.permanent_storage.used = 0;
+    app_memory.permanent_storage.curr_offset = app_memory.permanent_storage.base;
+
+    app_memory.render_storage.base = (u8*)app_memory.permanent_storage.base + app_memory.permanent_storage.size;
+    app_memory.render_storage.used = 0;
+    app_memory.render_storage.curr_offset = app_memory.render_storage.base;
 
     NtQueryTimerResolution(&g_perf_data.minimum_timer_resolution, &g_perf_data.maximum_timer_resolution, &g_perf_data.current_timer_resolution);
     GetSystemInfo(&g_perf_data.system_info);
     GetSystemTimeAsFileTime((FILETIME*)&g_perf_data.previous_system_time);
 
-    if (app_memory.permanent_storage && app_memory.transient_storage)
+    if (app_memory.permanent_storage.base && app_memory.render_storage.base)
     {
         i64 elapsed_micro_seconds_accumulator = 0;
         i64 elapsed_micro_seconds_accumulator_cooked = 0;
@@ -143,6 +148,7 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
 
         LARGE_INTEGER frame_start = Win32_GetWallClock();
         u64 cycle_count_start = __rdtsc();
+        i64 elapsed_micro_seconds = 0;
 
         Renderer_Init(window); // Initialize OpenGL context
 
@@ -154,8 +160,8 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
             new_input.mouse.wheel_value = 0;
             Win32_ProcessPendingMessages(window, new_input);
 
-            //GameUpdateAndRender(app_memory, g_framebuffer.buffer, new_input, old_input, asset_store, TARGET_SECONDS_PER_FRAME);
-            RenderQueue render_queue = AppUpdate(); // Fill Render
+            RenderQueue render_queue = {};
+            AppUpdate(app_memory, render_queue, new_input, old_input, (float)(elapsed_micro_seconds) / (1000.0f * 1000.f)); // Fill Render
 
             // Renderer code
             Renderer_ClearScreen(0.2f, 0.3f, 0.3f, 1.0f);
@@ -173,7 +179,7 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
             LARGE_INTEGER frame_end = Win32_GetWallClock();
             u64 cycle_count_end = __rdtsc();
 
-            i64 elapsed_micro_seconds = Win32_GetMicroSecondsElapsed(frame_start, frame_end);
+            elapsed_micro_seconds = Win32_GetMicroSecondsElapsed(frame_start, frame_end);
             elapsed_micro_seconds_accumulator += elapsed_micro_seconds;
 
             u64 elapsed_cycles = cycle_count_end - cycle_count_start;
@@ -270,6 +276,8 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
                 }
 
             frame_start = frame_end;
+            app_memory.render_storage.used = 0;
+            app_memory.render_storage.curr_offset = app_memory.render_storage.base;
         }
     }
 
@@ -455,17 +463,17 @@ internal void Win32_ProcessPendingMessages(HWND window, Input& input)
                 u32 vk_code = (u32)message.wParam;
                 u32 optCode = (u32)message.lParam;
                 i32 wasDown = ((optCode & (1 << 30)) != 0) ? 1 : 0;
-                i32 isDown = ((optCode & (1 << 31)) == 0) ? 1 : 0;
+                i32 is_down = ((optCode & (1 << 31)) == 0) ? 1 : 0;
                 i32 altKeyWasDown = ((optCode & (1 << 29)) != 0) ? 1 : 0;
 
                 ButtonState& button = Win32GetKeyFromVkCode(keyboard, vk_code);
-                button.isDown = (bool)isDown;
+                button.is_down = (bool)is_down;
 
-                if (keyboard.key_escape.isDown || ((keyboard.key_f4.isDown) && altKeyWasDown))
+                if (keyboard.key_escape.is_down || ((keyboard.key_f4.is_down) && altKeyWasDown))
                 {
                     g_running = false;
                 }
-                if (keyboard.key_f1.isDown)
+                if (keyboard.key_f1.is_down)
                 {
                     // https://stackoverflow.com/questions/2382464/win32-full-screen-and-hiding-taskbar
                     g_fullscreen = !g_fullscreen;
@@ -495,7 +503,7 @@ internal void Win32_ProcessPendingMessages(HWND window, Input& input)
                                      SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
                     }
                 }
-                if (keyboard.key_f2.isDown)
+                if (keyboard.key_f2.is_down)
                 {
                     g_show_debug_info = !g_show_debug_info;
                 }

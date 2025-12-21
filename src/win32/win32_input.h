@@ -5,8 +5,8 @@
 
 internal void Win32LoadXInput();
 internal ButtonState& Win32GetKeyFromVkCode(Keyboard& new_state, u32 vk_code);
-internal void Win32ProcessKeyboardMessage(Keyboard& new_state, u32 vk_code, i32 isDown);
-internal void Win32ProcessMouseMessage(Mouse& new_state, u32 mkCode, i32 isDown);
+internal void Win32ProcessKeyboardMessage(Keyboard& new_state, u32 vk_code, i32 is_down);
+internal void Win32ProcessMouseMessage(Mouse& new_state, u32 mkCode, i32 is_down);
 internal void Win32ProcessXInputDigitalButton(DWORD xInputButtonState, DWORD buttonBit, ButtonState* oldState, ButtonState* new_state);
 internal f32 Win32ProcessXInputStickValue(SHORT value, SHORT deadZoneThreshold);
 

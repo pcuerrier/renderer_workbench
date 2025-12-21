@@ -168,16 +168,20 @@ internal MeshHandle Renderer_CreateMesh(const Vertex* vertices, int v_count, int
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, i_count * static_cast<int>(sizeof(int)), indices, GL_STATIC_DRAW);
     // Layout matches struct Vertex:
     // 0: Position (3 floats)
-    // 1: Color (3 floats)
-    // 2: UV (2 floats)
+    // 1: Normal (3 floats)
+    // 2: Color (3 floats)
+    // 3: UV (2 floats)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
     glEnableVertexAttribArray(0);
     
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(9 * sizeof(float)));
+    glEnableVertexAttribArray(3);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind VBO (the VAO "remembers" it)
     glBindVertexArray(0);
@@ -242,7 +246,7 @@ internal ShaderHandle Renderer_CreateShader(const char* vertex_source, const cha
 
 internal void Renderer_Draw(RenderCommand* cmd)
 {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
     if (cmd->mesh.id >= g_meshes.size()) return;
     if (cmd->shader.id >= g_shaders.size()) return;
 
@@ -253,8 +257,14 @@ internal void Renderer_Draw(RenderCommand* cmd)
     glUseProgram(shader);
 
     // 3. Upload Uniforms
-    GLint loc = glGetUniformLocation(shader, "transform");
-    glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(cmd->transform_matrix));
+    GLint loc_model = glGetUniformLocation(shader, "model");
+    glUniformMatrix4fv(loc_model, 1, GL_FALSE, glm::value_ptr(cmd->model));
+
+    GLint loc_view = glGetUniformLocation(shader, "view");
+    glUniformMatrix4fv(loc_view, 1, GL_FALSE, glm::value_ptr(cmd->view));
+
+    GLint loc_projection = glGetUniformLocation(shader, "projection");
+    glUniformMatrix4fv(loc_projection, 1, GL_FALSE, glm::value_ptr(cmd->projection));
 
     // 4. Draw
     glBindVertexArray(mesh.vao);

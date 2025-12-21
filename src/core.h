@@ -80,7 +80,7 @@ struct Framebuffer
 
 struct ButtonState
 {
-    bool isDown;
+    bool is_down;
 };
 
 ButtonState INVALID_BUTTON_STATE = {};
