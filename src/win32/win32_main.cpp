@@ -14,7 +14,9 @@
 global bool g_running;
 global LONG g_window_style;
 global LONG g_window_ex_style;
-global RECT g_windowed_rect;
+global RECT g_windowed_rect;    
+global f32 g_window_width;
+global f32 g_window_height;
 global bool g_fullscreen = false;
 global bool g_show_debug_info = true;
 
@@ -48,7 +50,9 @@ internal LRESULT CALLBACK Win32_WindowProc(HWND window, UINT message, WPARAM wPa
             i32 width = client_rect.right - client_rect.left;
             i32 height = client_rect.bottom - client_rect.top;
             //Win32_ResizeDIBSection(APP_RES_WIDTH, APP_RES_HEIGHT);
-            Renderer_Resize(width, height);
+            g_window_width = (f32)width;
+            g_window_height = (f32)height;
+            renderer::Resize(width, height);
         } break;
 
         default:
@@ -122,23 +126,15 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
 #endif
 
     Memory app_memory = {};
-    app_memory.permanent_storage.size = Megabytes(64);
-    app_memory.render_storage.size = Megabytes(4);
-
-    size_t totalSize = (size_t)(app_memory.permanent_storage.size + app_memory.render_storage.size);
-    app_memory.permanent_storage.base = VirtualAlloc(base_address, totalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-    app_memory.permanent_storage.used = 0;
-    app_memory.permanent_storage.curr_offset = app_memory.permanent_storage.base;
-
-    app_memory.render_storage.base = (u8*)app_memory.permanent_storage.base + app_memory.permanent_storage.size;
-    app_memory.render_storage.used = 0;
-    app_memory.render_storage.curr_offset = app_memory.render_storage.base;
+    memory::InitVMArena(&app_memory.permanent_storage, Megabytes(64));
+    memory::InitVMArena(&app_memory.render_storage, Gigabytes(4));
 
     NtQueryTimerResolution(&g_perf_data.minimum_timer_resolution, &g_perf_data.maximum_timer_resolution, &g_perf_data.current_timer_resolution);
     GetSystemInfo(&g_perf_data.system_info);
     GetSystemTimeAsFileTime((FILETIME*)&g_perf_data.previous_system_time);
 
-    if (app_memory.permanent_storage.base && app_memory.render_storage.base)
+    // TODO: Check for memory failures
+    //if (app_memory.permanent_storage.base && app_memory.render_storage.base)
     {
         i64 elapsed_micro_seconds_accumulator = 0;
         i64 elapsed_micro_seconds_accumulator_cooked = 0;
@@ -150,7 +146,7 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
         u64 cycle_count_start = __rdtsc();
         i64 elapsed_micro_seconds = 0;
 
-        Renderer_Init(window); // Initialize OpenGL context
+        renderer::Init(window); // Initialize OpenGL context
 
         ShowWindow(window, SW_SHOW);
 
@@ -161,16 +157,16 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
             Win32_ProcessPendingMessages(window, new_input);
 
             RenderQueue render_queue = {};
-            AppUpdate(app_memory, render_queue, new_input, old_input, (float)(elapsed_micro_seconds) / (1000.0f * 1000.f)); // Fill Render
+            AppUpdate(app_memory, render_queue, new_input, old_input, g_window_width, g_window_height, (float)(elapsed_micro_seconds) / (1000.0f * 1000.f)); // Fill Render
 
             // Renderer code
-            Renderer_ClearScreen(0.2f, 0.3f, 0.3f, 1.0f);
-            for (size_t i = 0; i < render_queue.command_count; ++i)
+            renderer::ClearScreen(0.2f, 0.3f, 0.3f, 1.0f);
+            for (u64 i = 0; i < render_queue.command_count; ++i)
             {
-                Renderer_Draw(&render_queue.commands[i]);
+                renderer::Draw(&render_queue.commands[i]);
             }
 
-            Renderer_Present();
+            renderer::Present();
             SwapBuffers(GetDC(window));
 
             //Win32_BlitDIBSection(window);
@@ -276,8 +272,7 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
                 }
 
             frame_start = frame_end;
-            app_memory.render_storage.used = 0;
-            app_memory.render_storage.curr_offset = app_memory.render_storage.base;
+            memory::VMArenaReset(&app_memory.render_storage);
         }
     }
 

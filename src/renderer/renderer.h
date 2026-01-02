@@ -23,20 +23,25 @@ struct RenderCommand {
 
 struct RenderQueue {
     RenderCommand* commands;
-    i64 command_count;
-    i64 capacity;
+    u64 command_count;
+    u64 capacity;
 };
+
+namespace renderer
+{
 
 // The Interface - Functions implemented by the backend
 // System related functions
-internal bool Renderer_Init(void* window_handle);
-internal void Renderer_Resize(i32 width, i32 height);
-internal void Renderer_ClearScreen(f32 r, f32 g, f32 b, f32 a);
-internal void Renderer_Present();
+internal bool Init(void* window_handle);
+internal void Resize(i32 width, i32 height);
+internal void ClearScreen(f32 r, f32 g, f32 b, f32 a);
+internal void Present();
 
 // Resource creation functions
-internal MeshHandle Renderer_CreateMesh(const Vertex* vertices, int v_count, int* indices, int i_count);
-internal ShaderHandle Renderer_CreateShader(const char* vertex_source, const char* fragment_source);
+internal MeshHandle CreateMesh(const Vertex* vertices, int v_count, int* indices, int i_count);
+internal ShaderHandle CreateShader(const char* vertex_source, const char* fragment_source);
 
 // Rendering functions
-internal void Renderer_Draw(RenderCommand* cmd);
+internal void Draw(RenderCommand* cmd);
+
+} // namespace renderer

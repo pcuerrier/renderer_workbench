@@ -26,6 +26,8 @@ global std::vector<GLuint> g_shaders;
 
 global HMODULE g_opengl32_module;
 
+namespace renderer
+{
 internal GLADloadfunc GetProcAddressWGL(const char* procname)
 {
     const GLADloadfunc proc = (GLADloadfunc) wglGetProcAddress(procname);
@@ -123,7 +125,7 @@ internal bool Init_OpenGL(void* window_handle)
     return true;
 }
 
-internal bool Renderer_Init(void* window_handle)
+internal bool renderer::Init(void* window_handle)
 {
     bool init_result = Init_OpenGL(window_handle);
     if (!init_result)
@@ -134,23 +136,23 @@ internal bool Renderer_Init(void* window_handle)
     return true;
 }
 
-internal void Renderer_Resize(i32 width, i32 height)
+internal void renderer::Resize(i32 width, i32 height)
 {
     glViewport(0, 0, width, height);
 }
 
-internal void Renderer_Present()
+internal void renderer::Present()
 {
     glFlush();
 }
 
-internal void Renderer_ClearScreen(f32 r, f32 g, f32 b, f32 a)
+internal void renderer::ClearScreen(f32 r, f32 g, f32 b, f32 a)
 {
     glClearColor(r, g, b, a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-internal MeshHandle Renderer_CreateMesh(const Vertex* vertices, int v_count, int* indices, int i_count)
+internal MeshHandle renderer::CreateMesh(const Vertex* vertices, int v_count, int* indices, int i_count)
 {
     GLMesh mesh = {};
 
@@ -190,11 +192,11 @@ internal MeshHandle Renderer_CreateMesh(const Vertex* vertices, int v_count, int
     g_meshes.push_back(mesh);
 
     MeshHandle handle = {};
-    handle.id = g_meshes.size() - 1;
+    handle.id = (u32)g_meshes.size() - 1;
     return handle;
 }
 
-internal ShaderHandle Renderer_CreateShader(const char* vertex_source, const char* fragment_source) {
+internal ShaderHandle renderer::CreateShader(const char* vertex_source, const char* fragment_source) {
     // 1. Compile Vertex Shader
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_source, NULL);
@@ -239,12 +241,12 @@ internal ShaderHandle Renderer_CreateShader(const char* vertex_source, const cha
     g_shaders.push_back(shader_program);
 
     ShaderHandle handle = {};
-    handle.id = g_shaders.size() - 1;
+    handle.id = (u32)g_shaders.size() - 1;
     return handle;
 }
 
 
-internal void Renderer_Draw(RenderCommand* cmd)
+internal void renderer::Draw(RenderCommand* cmd)
 {
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
     if (cmd->mesh.id >= g_meshes.size()) return;
@@ -271,3 +273,4 @@ internal void Renderer_Draw(RenderCommand* cmd)
     glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, 0);
 }
 
+} // namespace renderer
