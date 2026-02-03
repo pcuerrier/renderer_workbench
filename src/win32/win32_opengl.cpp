@@ -1,6 +1,7 @@
 #include "renderer/renderer.h"
 
 #include "win32_main.h"
+#include "resources/resources_catalog.h"
 
 #pragma warning(push, 0)
 #include "glad/gl.h"
@@ -11,6 +12,25 @@
 
 #include <vector>
 
+internal void CheckOpenGLError(const char* location)
+{
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR)
+    {
+        const char* error_str = "UNKNOWN";
+        switch (err)
+        {
+            case GL_INVALID_ENUM: error_str = "GL_INVALID_ENUM"; break;
+            case GL_INVALID_VALUE: error_str = "GL_INVALID_VALUE"; break;
+            case GL_INVALID_OPERATION: error_str = "GL_INVALID_OPERATION"; break;
+            case GL_STACK_OVERFLOW: error_str = "GL_STACK_OVERFLOW"; break;
+            case GL_STACK_UNDERFLOW: error_str = "GL_STACK_UNDERFLOW"; break;
+            case GL_OUT_OF_MEMORY: error_str = "GL_OUT_OF_MEMORY"; break;
+        }
+        printf("[GL ERROR at %s] %s (0x%x)\n", location, error_str, err);
+    }
+}
+
 // We map our generic MeshHandle to actual OpenGL Vertex Array Objects (VAOs)
 struct GLMesh {
     GLuint vao;
@@ -19,15 +39,35 @@ struct GLMesh {
     int index_count;
 };
 
+struct GLSprite {
+    GLuint texture_id;
+    float width;
+    float height;
+};
+
 // Global state or a static array to manage resources
 // (In a real engine, you'd have a robust resource manager)
 global std::vector<GLMesh> g_meshes;
 global std::vector<GLuint> g_shaders;
+global std::vector<GLSprite> g_sprites;
+
+global GLuint g_sprite_vao;
+global GLuint g_sprite_vbo;
+global GLuint g_sprite_ebo;
+
+global GLuint g_texture0;
 
 global HMODULE g_opengl32_module;
 
+global ResourceCatalog* g_resource_catalog = nullptr;
+
 namespace renderer
 {
+internal void SetResourceCatalog(ResourceCatalog* catalog)
+{
+    g_resource_catalog = catalog;
+}
+
 internal GLADloadfunc GetProcAddressWGL(const char* procname)
 {
     const GLADloadfunc proc = (GLADloadfunc) wglGetProcAddress(procname);
@@ -125,6 +165,52 @@ internal bool Init_OpenGL(void* window_handle)
     return true;
 }
 
+internal void Init_SpriteRendering()
+{
+    // Setup a quad for sprite rendering
+    // Use normalized device coordinates (-1 to 1) to ensure visibility regardless of window size
+    float vertices[] = {
+        // positions          // colors            // uvs
+        -0.5f,  -0.5f,        1.0f, 1.0f, 1.0f,   0.0f, 0.0f, // Bottom-left
+        0.5f,   -0.5f,        1.0f, 1.0f, 1.0f,   1.0f, 0.0f, // Bottom-right
+        0.5f,    0.5f,        1.0f, 1.0f, 1.0f,   1.0f, 1.0f, // Top-right
+        -0.5f,   0.5f,        1.0f, 1.0f, 1.0f,   0.0f, 1.0f  // Top-left
+    };
+    unsigned int indices[] = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    glGenVertexArrays(1, &g_sprite_vao);
+    glBindVertexArray(g_sprite_vao);
+
+    glGenBuffers(1, &g_sprite_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, g_sprite_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glGenBuffers(1, &g_sprite_ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_sprite_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // Layout: position (2), color (3), uv (2)
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(5 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glBindVertexArray(0);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glGenTextures(1, &g_texture0);
+}
+
 internal bool renderer::Init(void* window_handle)
 {
     bool init_result = Init_OpenGL(window_handle);
@@ -132,6 +218,8 @@ internal bool renderer::Init(void* window_handle)
     {
         return false;
     }
+
+    Init_SpriteRendering();
 
     return true;
 }
@@ -245,8 +333,121 @@ internal ShaderHandle renderer::CreateShader(const char* vertex_source, const ch
     return handle;
 }
 
+internal SpriteHandle renderer::CreateSprite(ResourceID resource_id, float width, float height)
+{
+    GLSprite sprite = {};
+    sprite.width = width;
+    sprite.height = height;
+
+    // Generate and bind a texture
+    glGenTextures(1, &sprite.texture_id);
+    glBindTexture(GL_TEXTURE_2D, sprite.texture_id);
+
+    // Helper lambda to create fallback 32x32 quadrant texture
+    auto create_fallback_texture = [&]() {
+        const int TEX_SIZE = 32;
+        const int QUAD_SIZE = 16; // Each quadrant is 16x16
+        unsigned char fallback_pixels[TEX_SIZE * TEX_SIZE * 4]; // RGBA
+
+        // Fill the texture with 4 colored quadrants
+        for (int y = 0; y < TEX_SIZE; ++y) {
+            for (int x = 0; x < TEX_SIZE; ++x) {
+                // Flip y-coordinate to match OpenGL's texture origin (bottom-left)
+                int flipped_y = TEX_SIZE - 1 - y;
+                int pixel_idx = (flipped_y * TEX_SIZE + x) * 4;
+                
+                // Determine which quadrant and set color
+                if (x < QUAD_SIZE && y < QUAD_SIZE) {
+                    // Top-left: RED
+                    fallback_pixels[pixel_idx + 0] = 255; // R
+                    fallback_pixels[pixel_idx + 1] = 0;   // G
+                    fallback_pixels[pixel_idx + 2] = 0;   // B
+                    fallback_pixels[pixel_idx + 3] = 255; // A
+                } else if (x >= QUAD_SIZE && y < QUAD_SIZE) {
+                    // Top-right: GREEN
+                    fallback_pixels[pixel_idx + 0] = 0;   // R
+                    fallback_pixels[pixel_idx + 1] = 255; // G
+                    fallback_pixels[pixel_idx + 2] = 0;   // B
+                    fallback_pixels[pixel_idx + 3] = 255; // A
+                } else if (x < QUAD_SIZE && y >= QUAD_SIZE) {
+                    // Bottom-left: BLUE
+                    fallback_pixels[pixel_idx + 0] = 0;   // R
+                    fallback_pixels[pixel_idx + 1] = 0;   // G
+                    fallback_pixels[pixel_idx + 2] = 255; // B
+                    fallback_pixels[pixel_idx + 3] = 255; // A
+                } else {
+                    // Bottom-right: WHITE
+                    fallback_pixels[pixel_idx + 0] = 255; // R
+                    fallback_pixels[pixel_idx + 1] = 255; // G
+                    fallback_pixels[pixel_idx + 2] = 255; // B
+                    fallback_pixels[pixel_idx + 3] = 255; // A
+                }
+            }
+        }
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TEX_SIZE, TEX_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, fallback_pixels);
+    };
+
+    // Load texture data from resource catalog
+    if (g_resource_catalog != nullptr && resource_id != INVALID_RESOURCE_ID)
+    {
+        Resource* resource = Catalog_Get(g_resource_catalog, resource_id);
+        if (resource != nullptr && resource->rawBuffer != nullptr)
+        {
+            // Assume the resource contains raw RGBA pixel data
+            // For a real implementation, you'd parse format/dimensions from the resource data
+            // For now, assume it's a square texture: size = width * height * 4 (RGBA)
+            // and dimensions = width
+            int texture_dim = (int)sqrt(resource->size / 4);
+            if (texture_dim > 0)
+            {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture_dim, texture_dim, 0, GL_RGBA, GL_UNSIGNED_BYTE, resource->rawBuffer);
+            }
+            else
+            {
+                // Fallback: create 32x32 colored quadrant texture
+                create_fallback_texture();
+            }
+        }
+        else
+        {
+            // Fallback: create 32x32 colored quadrant texture
+            create_fallback_texture();
+        }
+    }
+    else
+    {
+        // Fallback: create 32x32 colored quadrant texture
+        create_fallback_texture();
+    }
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    g_sprites.push_back(sprite);
+
+    SpriteHandle handle = {};
+    handle.id = (u32)g_sprites.size() - 1;
+    return handle;
+}
 
 internal void renderer::Draw(RenderCommand* cmd)
+{
+    switch (cmd->mode)
+    {
+        case RenderMode::MESH:
+            DrawMesh(&cmd->mesh_cmd);
+            break;
+        case RenderMode::SPRITE:
+            DrawSprite(&cmd->sprite_cmd);
+            break;
+    }
+}
+
+internal void renderer::DrawMesh(RenderMeshCommand* cmd)
 {
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
     if (cmd->mesh.id >= g_meshes.size()) return;
@@ -270,7 +471,47 @@ internal void renderer::Draw(RenderCommand* cmd)
 
     // 4. Draw
     glBindVertexArray(mesh.vao);
-    glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, 0);
+    auto mode = cmd->draw_mode == DrawMode::TRIANGLES ? GL_TRIANGLES :
+                cmd->draw_mode == DrawMode::LINES ? GL_LINES :
+                cmd->draw_mode == DrawMode::LINE_STRIP ? GL_LINE_STRIP : GL_TRIANGLES;
+    glDrawElements((GLenum)mode, mesh.index_count, GL_UNSIGNED_INT, 0);
+}
+
+internal void renderer::DrawSprite(RenderSpriteCommand* cmd)
+{
+    if (cmd->sprite.id >= g_sprites.size()) return;
+    if (cmd->shader.id >= g_shaders.size()) return;
+
+    GLSprite& sprite = g_sprites[cmd->sprite.id];
+    GLuint shader = g_shaders[cmd->shader.id];
+
+    // Disable depth testing for 2D rendering
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+
+    // 2. Setup State
+    glUseProgram(shader);
+
+    // 3. Upload Uniforms
+    GLint loc_model = glGetUniformLocation(shader, "model");
+    glUniformMatrix4fv(loc_model, 1, GL_FALSE, glm::value_ptr(cmd->model));
+
+    GLint loc_projection = glGetUniformLocation(shader, "projection");
+    glUniformMatrix4fv(loc_projection, 1, GL_FALSE, glm::value_ptr(cmd->projection));
+
+    // Bind texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sprite.texture_id);
+    GLint loc_texture = glGetUniformLocation(shader, "spriteTexture");
+    glUniform1i(loc_texture, 0); // Texture unit 0
+
+    // 4. Draw
+    glBindVertexArray(g_sprite_vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    // Re-enable depth testing
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
 }
 
 } // namespace renderer

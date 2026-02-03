@@ -127,7 +127,7 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
 
     Memory app_memory = {};
     memory::InitVMArena(&app_memory.permanent_storage, Megabytes(64));
-    memory::InitVMArena(&app_memory.render_storage, Gigabytes(4));
+    memory::InitVMArena(&app_memory.render_storage, Megabytes(4));
 
     NtQueryTimerResolution(&g_perf_data.minimum_timer_resolution, &g_perf_data.maximum_timer_resolution, &g_perf_data.current_timer_resolution);
     GetSystemInfo(&g_perf_data.system_info);
@@ -258,7 +258,7 @@ i32 __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_lin
                 
                 sprintf_s(debug_text_buffer, sizeof(debug_text_buffer),
                 "FPS : %.01f/%.01f\n", g_perf_data.fps_cooked.avg, g_perf_data.fps_raw.avg);
-                OutputDebugStringA(debug_text_buffer);
+                //OutputDebugStringA(debug_text_buffer);
                 //DrawString(g_framebuffer.buffer, asset_store.sprites[1], debug_text_buffer, 0.0f, 10.0f, {0, 0, 0, 255});
                 
                 //sprintf_s(debug_text_buffer, sizeof(debug_text_buffer), "Handles: %lu", g_perf_data.handle_count);
@@ -515,4 +515,7 @@ internal void Win32_ProcessPendingMessages(HWND window, Input& input)
 
 #include "win32/win32_input.cpp"
 #include "win32/win32_opengl.cpp"
+
+#include "win32/resources/win32_resources_catalog.cpp"
+
 #include "app/app.cpp"

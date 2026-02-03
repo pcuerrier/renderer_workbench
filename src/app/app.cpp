@@ -2,30 +2,61 @@
 #include "app_internal.h"
 
 #include "camera.h"
+#include "resources/resources_catalog.h"
 
-static const char* vertex_ui_shader_source = R"(
+static const char* vertex_shader_2d_source = R"(
     #version 330 core
     layout (location = 0) in vec2 aPos; // 2D Position only!
-    layout (location = 1) in vec2 aUV;  // Texture coordinates
+    layout (location = 1) in vec3 aColor; // Color attribute
+    layout (location = 2) in vec2 aUV;  // Texture coordinates
 
     uniform mat4 projection; // Orthographic matrix
     uniform mat4 model;      // Position/Scale of the button
 
+    out vec3 vColor;
     out vec2 vUV;
 
     void main() {
         // Note: Z is 0.0, W is 1.0
         gl_Position = projection * model * vec4(aPos, 0.0, 1.0);
+        vColor = aColor;
         vUV = aUV;
     }
 )";
 
-static const char* fragment_ui_shader_source = R"(
+static const char* fragment_shader_2d_source = R"(
     #version 330 core
     out vec4 FragColor;
 
+    in vec3 vColor;
     in vec2 vUV;
-    uniform vec3 color; // Solid color for now (later this will be a texture)
+
+    uniform sampler2D spriteTexture;
+
+    void main() {
+        vec4 texColor = texture(spriteTexture, vUV);
+        FragColor = texColor * vec4(vColor, 1.0);
+    }
+)";
+
+static const char* vertex_line_shader_source = R"(
+    #version 330 core
+    layout (location = 0) in vec3 aPos;
+
+    uniform mat4 projection;
+    uniform mat4 view;
+    uniform mat4 model;
+
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+    }
+)";
+
+static const char* fragment_line_shader_source = R"(
+    #version 330 core
+    out vec4 FragColor;
+
+    uniform vec3 color;
 
     void main() {
         FragColor = vec4(color, 1.0);
@@ -98,14 +129,22 @@ static const char* fragment_shader_source = R"(
 RenderQueue AppUpdate(Memory& app_memory, RenderQueue& render_queue, const Input& curr_input, const Input& old_input, float width, float height, float delta_time)
 {
     static bool is_initialized = false;
-    MeshHandle mesh = {};
-    ShaderHandle shader = {};
+    
+    static MeshHandle mesh = {};
+    static MeshHandle axis_mesh = {};
+    static ShaderHandle shader = {};
+    static ShaderHandle axis_shader = {};
+    static ShaderHandle shader_2d = {};
+    static SpriteHandle sprite = {};
     static Camera* camera = nullptr;
     float speed = 2.5f;
     float sensitivity = 0.1f;
 
+    static ResourceCatalog* resources;
+
     if (!is_initialized)
     {
+        printf("Initializing app resources...\n");
         is_initialized = true;
 
         Vertex vertices[] = {
@@ -148,11 +187,38 @@ RenderQueue AppUpdate(Memory& app_memory, RenderQueue& render_queue, const Input
            16,17,18,18,19,16,         // Left face
            20,21,22,22,23,20          // Right face
         };
+
         mesh = renderer::CreateMesh(vertices, sizeof(vertices) / sizeof(Vertex), indices, sizeof(indices) / sizeof(int));
         shader = renderer::CreateShader(vertex_shader_source, fragment_shader_source);
+        
         camera = (Camera*)memory::VMArenaAlloc(&app_memory.permanent_storage, sizeof(Camera));
 
         camera::Init(camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, 1.0f, 0.0f), width, height);
+
+        Vertex axis_vertices[] = {
+            // X Axis (Red)
+            { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0,0} },
+            { {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0,0} },
+            // Y Axis (Green)
+            { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0,0} },
+            { {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.5f, 1.5f, 1.5f}, {1,1} },
+            // Z Axis (Blue)
+            { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0,0} },
+            { {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.5f}, {1.5f, 1.5f, 1.5f}, {1,1} }
+        };
+        int axis_indices[] = {
+            0, 1, // X Axis
+            2, 3, // Y Axis
+            4, 5  // Z Axis
+        };
+        axis_mesh = renderer::CreateMesh(vertices, sizeof(vertices) / sizeof(Vertex), indices, sizeof(indices) / sizeof(int));
+        axis_shader = renderer::CreateShader(vertex_line_shader_source, fragment_line_shader_source);
+
+        shader_2d = renderer::CreateShader(vertex_shader_2d_source, fragment_shader_2d_source);
+        resources = Catalog_Create();
+        renderer::SetResourceCatalog(resources);
+        //auto s = Catalog_Load(resources, "assets/debug_sprite.data", ResourceType::RES_SPRITE);
+        sprite = renderer::CreateSprite(0, 1.0f, 1.0f);
     }
     camera::UpdateDimensions(camera, width, height);
 
@@ -177,28 +243,40 @@ RenderQueue AppUpdate(Memory& app_memory, RenderQueue& render_queue, const Input
     float dy = (float)(old_input.mouse.y_pos - curr_input.mouse.y_pos); // Reversed (y-coordinates range from bottom to top)
 
     // Only update if mouse moved
-    /*if (dx != 0 || dy != 0)
+    if (dx != 0 || dy != 0)
     {
-        camera->yaw += dx * sensitivity;
-        camera->pitch += dy * sensitivity;
-        Camera_Update_Vectors(camera);
+        //camera->yaw += dx * sensitivity;
+        //camera->pitch += dy * sensitivity;
+        //camera::UpdateVectors(camera);
         // Re-center cursor to keep it from leaving the window (optional but recommended)
         // SetCursorPos(last_mouse_pos.x, last_mouse_pos.y); 
-    }*/
+    }
+
+    //RenderCommand* command = (RenderCommand*)memory::VMArenaAlloc(&app_memory.render_storage, sizeof(RenderCommand));
+    //command->mesh = axis_mesh;
+    //command->shader = axis_shader;
+    //command->draw_mode = DrawMode::LINES;
 
     RenderCommand* command = (RenderCommand*)memory::VMArenaAlloc(&app_memory.render_storage, sizeof(RenderCommand));
-    command->mesh = mesh;
-    command->shader = shader;
+    //command->mesh_cmd.mesh = mesh;
+    //command->mesh_cmd.shader = shader;
+    //command->mode = RenderMode::MESH;
 
-    static int count = 0;
-    float angle = glm::radians(1.0f * (f32)count++);
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.5f, 1.0f, 0.5f));
-    glm::mat4 view  = camera::GetViewMatrix(camera);
+    //static int count = 0;
+    //float angle = glm::radians(1.0f * (f32)count++);
+    //glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.5f, 1.0f, 0.5f));
+    //glm::mat4 view  = camera::GetViewMatrix(camera);
     //glm::mat4 view  = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-    command->model = model;
-    command->view = view;
-    command->projection = projection;
+    //glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+    //command->mesh_cmd.model = model;
+    //command->mesh_cmd.view = view;
+    //command->mesh_cmd.projection = projection;
+
+    command->mode = RenderMode::SPRITE;
+    command->sprite_cmd.sprite = sprite;
+    command->sprite_cmd.shader = shader_2d;
+    command->sprite_cmd.model = glm::mat4(1.0f); // Identity matrix
+    command->sprite_cmd.projection = glm::mat4(1.0f); // Identity matrix - vertices already in NDC
 
     render_queue.commands = command;
     render_queue.command_count = 1;
